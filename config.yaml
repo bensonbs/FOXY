@@ -1,0 +1,21 @@
+credentials:
+  usernames:
+    mefae1:
+      email: 
+      name: mefae1
+      password: '$2b$12$jGBlATLO5NJQ.98xsFW3HOBTF4LIr3D8H9zouJHcitk4lZ8G1xhIe' # To be replaced with hashed password
+    mefad1:
+      email: 
+      name: mefad1
+      password: '$2b$12$jGBlATLO5NJQ.98xsFW3HOBTF4LIr3D8H9zouJHcitk4lZ8G1xhIe' # To be replaced with hashed password
+    admin:
+      email: 
+      name: admin
+      password: '$2b$12$jGBlATLO5NJQ.98xsFW3HOBTF4LIr3D8H9zouJHcitk4lZ8G1xhIe' # To be replaced with hashed password
+cookie:
+  expiry_days: 30
+  key: random_signature_key
+  name: random_cookie_name
+preauthorized:
+  emails:
+  - melsby@gmail.com
