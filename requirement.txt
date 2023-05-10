@@ -11,4 +11,3 @@ uvicorn
 ujson
 opencv-python-headless<4.3
 streamlit_authenticator
-streamlit_tree_select

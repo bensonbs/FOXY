@@ -1,4 +1,5 @@
-import os,io,re,cv2,requests,json,base64,torch,zipfile,datetime,yaml
+# -*- coding: utf-8 -*-
+import os,io,re,cv2,requests,json,base64,torch,zipfile,datetime,yaml,random
 import streamlit as st
 import numpy as np
 import shutil
@@ -12,7 +13,7 @@ from utils.plots import Annotator, colors
 from streamlit_image_comparison import image_comparison
 from streamlit_lottie import st_lottie
 from streamlit_tree_select import tree_select
-
+from PIL import Image, ImageDraw, ImageFont
 
 def keys(dic): return list(dic.keys())
 
@@ -94,7 +95,7 @@ def video2image(set_fps,layout):
             frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
             duration = frame_count/fps
             for i in stqdm(range(int(duration*set_fps))):
-                vidcap.set(cv2.CAP_PROP_POS_MSEC,i*(1/set_fps))
+                vidcap.set(cv2.CAP_PROP_POS_MSEC,i*1000*(1/set_fps))
                 success,image = vidcap.read()
                 if not success:
                     layout.warning(f'Fail to get frame from `{file}` in `{i*(1/set_fps)}` sec')
@@ -149,11 +150,50 @@ def zipdir(path, ziph):
                         os.path.relpath(os.path.join(root, file),os.path.join(path)))
     zip_layout.empty()
 
+def watermarked(img,user):
+    img = img.convert('RGBA')
+    time = (datetime.datetime.today()+datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
+
+    #Opening Image & Creating New Text Layer
+    txt = Image.new('RGBA', img.size, (255,255,255,0))
+
+    #Creating Text
+    text = user + '\n' + time
+    # font_path = os.path.join(cv2.__path__[0],'qt','fonts','DejaVuSans.ttf')
+    font = ImageFont.load_default()
+
+    #Creating Draw Object
+    draw = ImageDraw.Draw(txt)
+
+    #Positioning of Text
+    width, height = img.size 
+    # textwidth, textheight = d.textsize(text, font)
+    # x=width/2-textwidth/2
+    # y=height-textheight-300
+
+    # Loop for Multiple Watermarks
+    y=200
+    for i in range(2):
+        x=random.randint(0, width-300)
+        y+=random.randrange(0,int(height/8), 19)+random.randint(0,100)
+        draw.text((x,y), text, fill=(255,255,255, 100), font=font)
+
+    #Combining both layers and saving new image
+    image = Image.alpha_composite(img, txt)
+
+    return image.convert('RGB')
 
 if __name__ == '__main__':
 
     st.set_page_config(layout="wide")
-
+    # components.html(
+    #     """
+    #     <script>
+    #     document.addEventListener('contextmenu', event => event.preventDefault());
+    #     </script>
+    #     """
+    # )
+    st_init(var='lables', default=[])
     st_init(var='result', default={})
     st_init(var='outputs',default={})
     st_init(var='size',default={})
@@ -216,6 +256,7 @@ if __name__ == '__main__':
         with letf1_expander:
             st.markdown('### 上傳圖片/視頻文件')
             select_files = [file for file in tree_select(get_node('/mnt/share/share'))['checked'] if os.path.isfile(file)]
+            # select_files = [file for file in tree_select(get_node('upload'))['checked'] if os.path.isfile(file)]
 
         for select_file in select_files:
             select_file_fold, select_file_name = os.path.split(select_file)
@@ -283,13 +324,25 @@ if __name__ == '__main__':
 
         if len(keys(sss.result)) > 0:
             with right3_expander:
+ 
+                labels_str  = st.text_input('Raw','')
+                
+                try:
+                    labels_dics = eval(labels_str)
+                    sss.labels = [labels_dic['name'] for labels_dic in labels_dics]
+                    st.write(sss.labels)
+                except:
+                    st.write('**請複製紅框內文字**')
+                    st.image('./pic/raw.png')
+                
                 st.markdown('### 描述需要檢測的對象')
                 caption = st.text_input('僅支援英文輸入','cone . a man . hard hat.')
-                button_layout = st.columns([1,1,1,3])
+                button_layout = st.columns([1,1,1,1,2])
                 image_area = st.empty()
                 # sss.prob = button_layout[0].slider('confidence threshold', 0.0, 1.0, 0.5)
-                compare = button_layout[2].checkbox('測試模式',value=True)
-                if video_files : sss.Pass = button_layout[3].checkbox('跳過標注（僅輸出圖片）',value=False)
+                compare = button_layout[3].checkbox('測試模式',value=True)
+                watermark = button_layout[2].checkbox('浮水印',value=True, disabled = False if user == 'mefae1' else True)
+                if video_files : sss.Pass = button_layout[4].checkbox('跳過標注（僅輸出圖片）',value=False)
                 if button_layout[1].button("重置",type='primary'):
                     sss.outputs = {}
                     st.info('🔄 重置成功')
@@ -314,6 +367,8 @@ if __name__ == '__main__':
                             for k in range(len(keys(output))):
                                 sss.outputs[file_name][str(k + n)] = output[str(k)]
                         image_plt = plot_output(sss.result[file_name]['image_str'], sss.outputs[file_name])
+                        if watermark:
+                            image_plt = watermarked(image_plt,user)
                         image_org = base64_to_image(sss.result[file_name]['image_str'])
                         sss.size[file_name] = {'w': image_org.size[0], 'h': image_org.size[1]}
 
@@ -347,7 +402,8 @@ if __name__ == '__main__':
             for label in all_label:
                 st.markdown(f'### {label}')
                 sidebar_layout = st.columns([1.2, 2])
-                num_selected = sidebar_layout[0].selectbox(f'number', range(50),key=label+'selectbox')
+                selected = sidebar_layout[0].selectbox(f'save as',sss.labels,key=label+'selectbox')
+                num_selected = sss.labels.index(selected)
                 prob_threshold = sidebar_layout[1].slider(f'confidence threshold', 0.5, 0.9, 0.5,key=label+'slider')
                 dic[label] = {
                     'label': num_selected,
@@ -359,72 +415,73 @@ if __name__ == '__main__':
                         if label_ == label:
                             sss.outputs[img_path][cls]['index'] = num_selected
 
+            # 移除outputs中機率低於設定prob的物件
+            if len(keys(sss.outputs))>0 or sss.Pass:
+                if st.button('儲存',type='primary') or sss.Pass:
 
-        # 移除outputs中機率低於設定prob的物件
-        if len(keys(sss.outputs))>0 or sss.Pass:
-            if st.button('儲存',type='primary') or sss.Pass:
-
-                for label in all_label:
-                    for img_path in keys(sss.outputs):
-                        for cls in keys(sss.outputs[img_path]):
-                            if sss.outputs[img_path][cls]['prob'] < dic[label]['prob']:
-                                sss.outputs[img_path].pop(cls)
-
-                with open('./lottie/lf30_editor_3p1jeacf.json','r') as f:
-                    lottie_json = json.loads(f.read())
-
-                st_lottie(lottie_json,height=200,width=200)
-                ept2 = st.empty()
-                ept2.markdown('### wait a moment 🚀')
-                if not os.path.isdir(os.path.join('temp',user,'download')):
-                        os.makedirs(os.path.join('temp',user,'download'))
-
-
-                # - 創建并寫入文件 train.txt ，其中保存了每個圖像的路徑信息。
-                # - 對於每個圖像，創建一個同名的文本文件，其中保存了圖像中每個物體的座標信息。
-                # - 創建文件 obj.data ，保存了一些模型訓練所需的配置信息，包括類別數量、訓練集路徑、物體名稱以及备份文件夾。
-                # - 創建文件 obj.names ，保存了物體名稱的列表。
-                for root, dirs, files in os.walk(os.path.join('temp', username)):
-                    for file in files:
-                        if os.path.isfile(os.path.join(root, file)) and os.path.splitext(file)[1] in image_type:
-                            if not os.path.isfile(f'temp/{user}/download/{file}'):
-                                os.rename(
-                                    os.path.join(root, file),
-                                    f'temp/{user}/download/{file}'
-                                )
-
-                with open(os.path.join('temp', user, 'train.txt'), 'w') as f1:
-                    for img_path in keys(sss.outputs):
-                        output_path = os.path.join('data', 'download', f'{os.path.basename(img_path)}.png')
-                        f1.write(output_path + '\n')
-                        with open(os.path.join('temp', username, 'download', f'{os.path.basename(img_path)}.txt'), 'w') as f:
+                    for label in all_label:
+                        for img_path in keys(sss.outputs):
                             for cls in keys(sss.outputs[img_path]):
-                                w = sss.size[img_path]['w']
-                                h = sss.size[img_path]['h']
-                                box = sss.outputs[img_path][cls]
-                                xyxy = xywh2xyxy(torch.Tensor([box['x'] * w, box['y'] * h, box['w'] * w, box['h'] * h]))
-                                f.write('{} {} {} {} {}\n'.format(box['index'], box['x'], box['y'], box['w'], box['h']))
+                                if sss.outputs[img_path][cls]['prob'] < dic[label]['prob']:
+                                    sss.outputs[img_path].pop(cls)
 
-                with open(os.path.join('temp', user, 'obj.data'), 'w') as f2:
-                    f2.write('classes = 6\ntrain = data/train.txt\nnames = data/obj.names\nbackup = backup/')
+                    with open('./lottie/lf30_editor_3p1jeacf.json','r') as f:
+                        lottie_json = json.loads(f.read())
 
-                with open(os.path.join('temp', user, 'obj.names'), 'w') as f3:
-                    f3.write('illegal\nsafety\ncone\ntruck\nchemical\nfilling')
+                    st_lottie(lottie_json,height=200,width=200)
+                    ept2 = st.empty()
+                    ept2.markdown('### wait a moment 🚀')
+                    if not os.path.isdir(os.path.join('temp',user,'download')):
+                            os.makedirs(os.path.join('temp',user,'download'))
 
 
-                #將用戶生成的文件夾進行打包壓縮，並提供下載按鈕
-                dts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                with zipfile.ZipFile(f'zip/{user}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    zipdir(f'temp/{user}', zipf)
+                    # - 創建并寫入文件 train.txt ，其中保存了每個圖像的路徑信息。
+                    # - 對於每個圖像，創建一個同名的文本文件，其中保存了圖像中每個物體的座標信息。
+                    # - 創建文件 obj.data ，保存了一些模型訓練所需的配置信息，包括類別數量、訓練集路徑、物體名稱以及备份文件夾。
+                    # - 創建文件 obj.names ，保存了物體名稱的列表。
+                    with open(os.path.join('temp', user, 'train.txt'), 'w') as f1:
+                        for img_path in keys(sss.outputs):
+                            output_path = os.path.join('data', 'download', f'{os.path.basename(img_path)}.png')
+                            f1.write(output_path + '\n')
+                            with open(os.path.join('temp', username, 'download', f'{os.path.basename(img_path)}.txt'), 'w') as f:
+                                for cls in keys(sss.outputs[img_path]):
+                                    w = sss.size[img_path]['w']
+                                    h = sss.size[img_path]['h']
+                                    box = sss.outputs[img_path][cls]
+                                    xyxy = xywh2xyxy(torch.Tensor([box['x'] * w, box['y'] * h, box['w'] * w, box['h'] * h]))
+                                    f.write('{} {} {} {} {}\n'.format(box['index'], box['x'], box['y'], box['w'], box['h']))
 
-                # copy_path = os.path.joint('/mnt','share','share','FOXY',user)
-                # check_path(copy_path)
-                # shutil.copyfile(f'zip/{user}.zip',os.path.join(copy_path,f"{dts}.zip"))
-                ept2.markdown('### success ☺️')
+                    with open(os.path.join('temp', user, 'obj.data'), 'w') as f2:
+                        f2.write('classes = {}\ntrain = data/train.txt\nnames = data/obj.names\nbackup = backup/'.format(len(sss.labels)))
 
-                with open(f'zip/{user}.zip', "rb") as file:
-                    btn = st.download_button(
-                            label="Download",
-                            data=file,
-                            file_name=f"{dts}.zip",
-                        )
+                    with open(os.path.join('temp', user, 'obj.names'), 'w') as f3:
+                        f3.writelines([label+'\n' for label in sss.labels])
+
+                    for root, dirs, files in os.walk(os.path.join('temp', username)):
+                        for file in files:
+                            if os.path.isfile(os.path.join(root, file)) and os.path.splitext(file)[1] in image_type:
+                                if not os.path.isfile(f'temp/{user}/download/{file}'):
+                                    os.rename(
+                                        os.path.join(root, file),
+                                        f'temp/{user}/download/{file}'.replace(' ','_')
+                                    )
+                                if watermark:
+                                    org_image = Image.open(f'temp/{user}/download/{file}'.replace(' ','_'))
+                                    watermarked(org_image,user).save(f'temp/{user}/download/{file}')
+
+                    #將用戶生成的文件夾進行打包壓縮，並提供下載按鈕
+                    dts = (datetime.datetime.now()+datetime.timedelta(hours=8)).strftime("%Y-%m-%d_%H-%M-%S")
+                    with zipfile.ZipFile(f'zip/{user}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+                        zipdir(f'temp/{user}', zipf)
+
+                    copy_path = os.path.join(os.path.join('/mnt','share','share','FOXY',user))
+                    check_path(copy_path)
+                    shutil.copyfile(f'zip/{user}.zip',os.path.join(copy_path ,f"{dts}.zip"))
+                    ept2.markdown('### success ☺️')
+
+                    with open(f'zip/{user}.zip', "rb") as file:
+                        btn = st.download_button(
+                                label="Download",
+                                data=file,
+                                file_name=f"{dts}.zip",
+                            )

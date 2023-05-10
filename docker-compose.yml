@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  foxy_v1_1:
+    image: benson/foxy:1.3
+    container_name: foxy_v1.3
+    command: /bin/bash -c "cd FOXY && streamlit run main.py & cd GLIP/ && python main.py
+    volumes:
+      - /home/mefae1/AI:/workspace
+      - /mnt:/mnt/share
+      # - C:\Users\ZME\AI:/workspace
+      # - C:\Users\ZME\AI\FOXY:/mnt/share
+    ports:
+      - 3001:3001
+      - 8501:8501
+      - 8888:8888
+      - 5000:5000
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
