@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   foxy_v3:
-    image: benson/foxy:1.0
+    image: benson/foxy:3.0
     container_name: foxy_v3
     command: /bin/bash -c "cd FOXY && streamlit run main.py & cd FOXY/GLIP && python main.py"
     volumes:

@@ -470,6 +470,7 @@ if __name__ == '__main__':
                                     watermarked(org_image,user).save(f'temp/{user}/download/{file}')
 
                     #將用戶生成的文件夾進行打包壓縮，並提供下載按鈕
+                    check_path('zip')
                     dts = (datetime.datetime.now()+datetime.timedelta(hours=8)).strftime("%Y-%m-%d_%H-%M-%S")
                     with zipfile.ZipFile(f'zip/{user}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
                         zipdir(f'temp/{user}', zipf)
